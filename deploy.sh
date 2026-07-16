@@ -61,8 +61,8 @@ echo "4. Stopping existing process..."
 pm2 delete "$APP_NAME" 2>/dev/null || true
 
 echo ""
-echo "5. Starting server with PM2 on port $PORT..."
-pm2 serve dist "$PORT" --name "$APP_NAME" --spa
+echo "5. Starting server with PM2 using ecosystem config..."
+pm2 start ecosystem.config.js
 
 echo ""
 echo "6. Saving PM2 process list..."
