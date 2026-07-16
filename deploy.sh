@@ -1,8 +1,10 @@
 #!/bin/bash
+set -e
 
 PROJECT_DIR="/opt/LunaWeb"
 REPO_URL="https://github.com/313sc/LunaWeb"
 PORT=313
+APP_NAME="LunaWeb"
 
 echo "=========================================="
 echo "  LunaWeb Deployment Script"
@@ -25,6 +27,14 @@ else
     exit 1
 fi
 
+if ! command -v pm2 &> /dev/null; then
+    echo "[INFO] PM2 not found. Installing..."
+    sudo npm install -g pm2
+else
+    echo "[OK] PM2 is installed"
+    pm2 --version
+fi
+
 echo ""
 echo "1. Checking project directory..."
 
@@ -34,7 +44,7 @@ if [ -d "$PROJECT_DIR" ]; then
     git pull origin main
 else
     echo "[INFO] Project directory does not exist. Cloning repository..."
-    git clone "$REPO_URL" "$PROJECT_DIR"
+    sudo git clone "$REPO_URL" "$PROJECT_DIR"
     cd "$PROJECT_DIR"
 fi
 
@@ -47,36 +57,30 @@ echo "3. Building project..."
 npm run build
 
 echo ""
-echo "4. Installing serve globally..."
-npm install -g serve
+echo "4. Stopping existing process..."
+pm2 delete "$APP_NAME" 2>/dev/null || true
 
 echo ""
-echo "5. Stopping existing process on port $PORT..."
-PID=$(lsof -ti:$PORT)
-if [ -n "$PID" ]; then
-    echo "[INFO] Killing process $PID"
-    kill -9 "$PID" 2>/dev/null || true
-    sleep 2
-fi
+echo "5. Starting server with PM2 on port $PORT..."
+pm2 serve dist "$PORT" --name "$APP_NAME" --spa
 
 echo ""
-echo "6. Starting server on port $PORT..."
-nohup serve -l "$PORT" -s dist > /var/log/lunaweb.log 2>&1 &
+echo "6. Saving PM2 process list..."
+pm2 save
+pm2 startup systemd -u root --hp /root
 
-sleep 3
+echo ""
+echo "=========================================="
+echo "  Deployment successful!"
+echo "  App: $APP_NAME"
+echo "  Port: $PORT"
+echo "  URL: http://localhost:$PORT"
+echo ""
+echo "  PM2 commands:"
+echo "    pm2 status          - Check status"
+echo "    pm2 logs $APP_NAME  - View logs"
+echo "    pm2 restart $APP_NAME - Restart app"
+echo "    pm2 stop $APP_NAME  - Stop app"
+echo "=========================================="
 
-if lsof -Pi:$PORT -sTCP:LISTEN -t > /dev/null ; then
-    echo ""
-    echo "=========================================="
-    echo "  Deployment successful!"
-    echo "  Server running on: http://localhost:$PORT"
-    echo "  Log file: /var/log/lunaweb.log"
-    echo "=========================================="
-else
-    echo ""
-    echo "=========================================="
-    echo "  [ERROR] Failed to start server!"
-    echo "  Check log file: /var/log/lunaweb.log"
-    echo "=========================================="
-    exit 1
-fi
+pm2 status
